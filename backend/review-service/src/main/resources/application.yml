@@ -1,0 +1,31 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: markethub-review-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:markethub_user}
+    password: ${MYSQL_PASSWORD}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        group: MARKETHUB_GROUP
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+
+  # 本服务不用 Redis 做缓存，但公共模块的 RedisConfig 会建 RedissonClient，所以连接参数必须是对的
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.markethub.review.entity
+  configuration:
+    map-underscore-to-camel-case: true

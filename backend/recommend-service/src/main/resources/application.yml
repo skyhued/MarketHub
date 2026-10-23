@@ -1,0 +1,38 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: markethub-recommend-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:markethub_user}
+    password: ${MYSQL_PASSWORD}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        group: MARKETHUB_GROUP
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.markethub.recommend.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 离线训练任务怎么调：python 可执行文件、脚本路径、超时（秒）、python 输出重定向到哪个目录
+# 子进程继承本进程的环境变量，所以 MYSQL_USER/MYSQL_PASSWORD 等不用在这里重复配
+recommend:
+  train:
+    python-executable: ${RECOMMEND_TRAIN_PYTHON:python}
+    script-path: ${RECOMMEND_TRAIN_SCRIPT:recommend/engine/train.py}
+    timeout-seconds: ${RECOMMEND_TRAIN_TIMEOUT_SECONDS:600}
+    log-dir: ${RECOMMEND_TRAIN_LOG_DIR:recommend/logs}

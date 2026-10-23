@@ -1,0 +1,112 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: markethub-gateway
+  # common drags in spring-boot-starter-web/security; the gateway is WebFlux and does its own JWT check in AuthGlobalFilter.
+  main:
+    web-application-type: reactive
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.reactive.ReactiveUserDetailsServiceAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.reactive.ReactiveManagementWebSecurityAutoConfiguration
+  cloud:
+    gateway:
+      routes:
+        - id: admin-product-service
+          uri: lb://markethub-product-service
+          predicates:
+            - Path=/api/admin/product/**,/api/admin/products/**
+          order: -20
+
+        - id: admin-order-service
+          uri: lb://markethub-order-service
+          predicates:
+            - Path=/api/admin/orders/**
+          order: -20
+
+        - id: uploads
+          uri: lb://markethub-product-service
+          predicates:
+            - Path=/api/uploads/**
+          order: -20
+
+        - id: user-service
+          uri: lb://markethub-user-service
+          predicates:
+            - Path=/api/users/**,/api/admin/**,/api/merchant/**
+
+        - id: product-service
+          uri: lb://markethub-product-service
+          predicates:
+            - Path=/api/products/**,/api/categories/**,/api/favorite/**
+
+        - id: seckill
+          uri: lb://markethub-product-service
+          predicates:
+            - Path=/api/seckill/**
+
+        - id: order-service
+          uri: lb://markethub-order-service
+          predicates:
+            - Path=/api/orders/**
+
+        - id: cart-service
+          uri: lb://markethub-cart-service
+          predicates:
+            - Path=/api/cart/**
+
+        - id: review-service
+          uri: lb://markethub-review-service
+          predicates:
+            - Path=/api/reviews/**
+
+        - id: recommend-service
+          uri: lb://markethub-recommend-service
+          predicates:
+            - Path=/api/recommend/**
+
+        - id: ai-service
+          uri: lb://markethub-ai-service
+          predicates:
+            - Path=/api/ai/**
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin
+
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: MARKETHUB_GROUP
+
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+      eager: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: 0
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+auth:
+  cookie:
+    secure: ${AUTH_COOKIE_SECURE:false}
+
+cors:
+  # 逗号分隔；认证 Cookie 会随跨域请求携带，只放行自己的前端地址
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+logging:
+  level:
+    com.markethub: DEBUG
+    org.springframework.cloud.gateway: INFO

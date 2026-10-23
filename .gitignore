@@ -1,0 +1,34 @@
+# Java / Maven
+backend/**/target/
+*.class
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.vite.pid
+
+# IDE
+.idea/
+*.iml
+
+# Runtime
+uploads/
+logs/
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+
+# Python
+recommend/**/__pycache__/
+recommend/**/*.pyc
+recommend/.venv/
+
+# OS
+.DS_Store
+Thumbs.db

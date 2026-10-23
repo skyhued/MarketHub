@@ -1,0 +1,49 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: markethub-ai-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:markethub_user}
+    password: ${MYSQL_PASSWORD}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        group: MARKETHUB_GROUP
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.markethub.ai.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+# Ollama 装在宿主机上。Docker 里的服务通过 OLLAMA_BASE_URL 指向 host.docker.internal，
+# 而 Ollama 默认只监听 127.0.0.1，所以宿主机必须设 OLLAMA_HOST=0.0.0.0 容器才连得上。
+ai:
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    chat-model: ${AI_CHAT_MODEL:qwen2.5:7b}
+    embedding-model: ${AI_EMBEDDING_MODEL:bge-m3}
+    connect-timeout-seconds: ${AI_OLLAMA_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${AI_OLLAMA_READ_TIMEOUT_SECONDS:180}
+  knowledge:
+    help-dir: ${AI_KNOWLEDGE_HELP_DIR:docs/help}
+    docs-dir: ${AI_KNOWLEDGE_DOCS_DIR:docs}
+    extra-files: ${AI_KNOWLEDGE_EXTRA_FILES:}
+    chunk-size: ${AI_CHUNK_SIZE:500}
+    chunk-overlap: ${AI_CHUNK_OVERLAP:80}
+    top-k: ${AI_TOP_K:4}
+    help-boost: ${AI_KNOWLEDGE_HELP_BOOST:0.05}
+  chat:
+    max-question-length: ${AI_MAX_QUESTION_LENGTH:500}

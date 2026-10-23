@@ -1,0 +1,65 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: markethub-order-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:markethub_user}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        group: MARKETHUB_GROUP
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+    openfeign:
+      client:
+        config:
+          # 不配的话走 Spring Cloud 默认的 10s/60s，一次卡住的调用就能把数据库连接占住 60 秒
+          default:
+            connect-timeout: 2000
+            read-timeout: 5000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASS}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        concurrency: 3
+        max-concurrency: 10
+        # 默认 default-requeue-rejected=true 会让处理失败的消息以极高频率无限重投（没有间隔的热循环）。
+        # 关掉它，配合下面的有界重试：重试耗尽后 Spring 抛 AmqpRejectAndDontRequeueException，
+        # 消息被拒收且不回队，由 order.timeout.queue 的 DLX 转进 order.timeout.dlq 停住。
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2s
+          multiplier: 2
+          max-interval: 10s
+
+# 未付款订单多少毫秒后自动取消，消息走 RabbitMQ 延时队列
+order:
+  pay-timeout-ms: ${ORDER_PAY_TIMEOUT_MS:1800000}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.markethub.order.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.markethub: DEBUG

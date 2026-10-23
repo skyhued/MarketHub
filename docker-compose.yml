@@ -1,0 +1,192 @@
+name: markethub
+
+# 密钥和密码只从项目根目录的 .env 读取（参考 .env.example），缺了会直接报错而不是用默认值
+x-backend: &backend
+  restart: unless-stopped
+  # Ollama 装在宿主机上，不在 compose 里。容器要访问它就得走 host.docker.internal，
+  # 这个映射在 Docker Desktop（Windows/Mac）上是内置的，Linux 上靠下面这行补出来。
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  environment:
+    TZ: Asia/Shanghai
+    SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+    MYSQL_USER: ${MYSQL_USER:?请在 .env 中设置 MYSQL_USER}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+    JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+    INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:?请在 .env 中设置 INTERNAL_AUTH_SECRET}
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
+    RABBIT_USER: ${RABBIT_USER:?请在 .env 中设置 RABBIT_USER}
+    RABBIT_PASS: ${RABBIT_PASS:?请在 .env 中设置 RABBIT_PASS}
+    AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+    CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ORDER_PAY_TIMEOUT_MS: ${ORDER_PAY_TIMEOUT_MS:-1800000}
+    MYSQL_HOST: mysql
+    MYSQL_PORT: "3306"
+    MYSQL_DATABASE: market_hub
+    SPRING_DATA_REDIS_HOST: redis
+    SPRING_RABBITMQ_HOST: rabbitmq
+    SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+    SPRING_CLOUD_SENTINEL_TRANSPORT_DASHBOARD: sentinel:8858
+    # 只有 ai-service 用得上，跟 ORDER_PAY_TIMEOUT_MS 一样放在公共段里，别的服务忽略即可
+    OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  depends_on:
+    mysql: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    rabbitmq: { condition: service_healthy }
+    nacos: { condition: service_healthy }
+
+# 中间件端口一律只绑 127.0.0.1：局域网内其他机器连不上，本机开发照常用。
+# 注意宿主机的 127.0.0.1 不等于容器里的 localhost，容器之间仍然走 docker 网络互相访问。
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: markethub-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: market_hub
+      MYSQL_USER: ${MYSQL_USER:?请在 .env 中设置 MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/common/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: markethub-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping 2>/dev/null | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: markethub-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER:?请在 .env 中设置 RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS:?请在 .env 中设置 RABBIT_PASS}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: markethub-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    ports:
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:9848:9848"
+      - "127.0.0.1:9849:9849"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  sentinel:
+    image: bladex/sentinel-dashboard:1.8.8
+    container_name: markethub-sentinel
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8718:8858"
+    # 控制台未开启鉴权，端口只绑 127.0.0.1。
+    environment:
+      JAVA_OPTS: "-Dserver.port=8858 -Dcsp.sentinel.dashboard.server=localhost:8858"
+
+  gateway:
+    <<: *backend
+    container_name: markethub-gateway
+    build: { context: ./backend, args: { MODULE: gateway } }
+    ports: ["127.0.0.1:8080:8080"]
+
+  user-service:
+    <<: *backend
+    container_name: markethub-user
+    build: { context: ./backend, args: { MODULE: user-service } }
+    ports: ["127.0.0.1:8081:8081"]
+    volumes: ["uploads:/app/uploads"]
+
+  product-service:
+    <<: *backend
+    container_name: markethub-product
+    build: { context: ./backend, args: { MODULE: product-service } }
+    ports: ["127.0.0.1:8082:8082"]
+    volumes: ["uploads:/app/uploads"]
+
+  order-service:
+    <<: *backend
+    container_name: markethub-order
+    build: { context: ./backend, args: { MODULE: order-service } }
+    ports: ["127.0.0.1:8083:8083"]
+
+  cart-service:
+    <<: *backend
+    container_name: markethub-cart
+    build: { context: ./backend, args: { MODULE: cart-service } }
+    ports: ["127.0.0.1:8084:8084"]
+
+  review-service:
+    <<: *backend
+    container_name: markethub-review
+    build: { context: ./backend, args: { MODULE: review-service } }
+    ports: ["127.0.0.1:8085:8085"]
+
+  recommend-service:
+    <<: *backend
+    container_name: markethub-recommend
+    build: { context: ./backend, args: { MODULE: recommend-service } }
+    ports: ["127.0.0.1:8086:8086"]
+
+  ai-service:
+    <<: *backend
+    container_name: markethub-ai
+    build: { context: ./backend, args: { MODULE: ai-service } }
+    ports: ["127.0.0.1:8087:8087"]
+    # 知识库语料直接挂仓库里的帮助文档，改完文档重建索引即可生效，不用重新打镜像
+    volumes:
+      - ./docs:/app/docs:ro
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  uploads:

@@ -1,0 +1,21 @@
+﻿# 公共模块配置文件
+# common模块不直接启动，但提供默认兜底配置
+
+# Redis配置
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+# 密码通过环境变量 REDIS_PASSWORD 提供，空串表示不加密
+spring.data.redis.password=${REDIS_PASSWORD:}
+spring.data.redis.database=0
+spring.data.redis.timeout=3000ms
+spring.data.redis.lettuce.pool.max-active=8
+spring.data.redis.lettuce.pool.max-idle=8
+spring.data.redis.lettuce.pool.min-idle=0
+
+# JWT配置（密钥必须通过环境变量 JWT_SECRET 提供）
+jwt.expiration=86400000
+
+# 文件上传配置
+file.upload.path=./uploads
+spring.servlet.multipart.max-file-size=5MB
+spring.servlet.multipart.max-request-size=10MB

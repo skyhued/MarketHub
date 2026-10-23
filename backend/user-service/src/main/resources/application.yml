@@ -1,0 +1,62 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: markethub-user-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/market_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:markethub_user}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: MARKETHUB_GROUP
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8718}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: 0
+      timeout: 3000ms
+
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASS}
+    virtual-host: /
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.markethub.user.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000
+
+auth:
+  cookie:
+    # 本地走 http，部分浏览器（如 Safari）不保存 Secure Cookie；上 https 后设为 true
+    secure: ${AUTH_COOKIE_SECURE:false}
+
+logging:
+  level:
+    com.markethub: DEBUG
